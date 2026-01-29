@@ -134,6 +134,46 @@ sudo docker compose --env-file .env run --rm moltbot-cli onboard
 sudo docker compose up -d
 ```
 
+### 4.4 安装技能（可选但推荐）
+
+容器启动后，您可以根据需求安装技能。技能会被安装到 `./skills` 目录，通过卷挂载持久化保存。
+
+**安装基础技能**：
+
+```bash
+cd /vol1/moltbot
+
+# 使用 moltbot-cli 安装技能
+sudo docker compose exec moltbot-cli clawdhub install tavily
+sudo docker compose exec moltbot-cli clawdhub install github
+sudo docker compose exec moltbot-cli clawdhub install summarize
+sudo docker compose exec moltbot-cli clawdhub install weather
+```
+
+**或者一次性安装多个技能**：
+
+```bash
+sudo docker compose exec moltbot-cli clawdhub install tavily github summarize weather
+```
+
+**验证技能安装**：
+
+```bash
+# 查看已安装的技能
+ls -la /vol1/moltbot/skills/
+
+# 应该看到类似输出：
+# drwxr-xr-x  tavily/
+# drwxr-xr-x  github/
+# drwxr-xr-x  summarize/
+# drwxr-xr-x  weather/
+```
+
+**说明**：
+- 技能安装到 `./skills` 目录，该目录已挂载到容器内的 `/app/skills`
+- 容器重启后技能仍然保留
+- 如需更多技能，请访问 [Moltbot Skills Hub](https://hub.molt.bot)
+
 ---
 
 ## 🌐 第五步：访问策略 (Access Strategy)
@@ -157,10 +197,31 @@ sudo docker compose up -d
 
 ## ✅ 第六步：功能验证 (Verification)
 
+### 6.1 基础功能测试
+
 1.  **检查健康状态**：网页右上角显示 **🟢 Health: Online**。
 2.  **测试 AI 对话**：发送 `Hello`，确认回复正常。
 
 ![Verification Success](images/moltbot_chat_success.png)
+
+### 6.2 技能功能测试（如已安装）
+
+如果您安装了技能，可以进行以下测试：
+
+**测试联网搜索（需要 Tavily 技能）**：
+```
+帮我搜索一下今天的新闻
+```
+
+**测试 GitHub 搜索（需要 GitHub 技能）**：
+```
+帮我找一下 React 相关的热门项目
+```
+
+**测试天气查询（需要 Weather 技能）**：
+```
+北京今天天气怎么样？
+```
 
 ---
 
