@@ -4,103 +4,34 @@
 
 ---
 
-## � 极速部署 (Quick Start) - 推荐方案
+## 🚀 极速部署 (Quick Start) - 推荐方案
 
-如果您不想手动修改配置文件、也不想折腾 Docker 命令行，请直接使用我们为您准备的 **v2.3 自动化部署脚本**。
-
-**脚本功能**：
-1.  **自动拉取代码**：自动检测/下载 GitHub 源码。
-2.  **自动适配环境**：自动修改 Dockerfile 适配 `node:25.5.0-bookworm`。
-3.  **自动配置挂载**：自动生成 `override` 配置，解决技能无法加载的问题。
-4.  **自动校验安装**：防呆设计，包含权限检查和镜像存在性校验。
+**v2.3 自动化脚本 (`deploy.sh`)** 已经包含在本仓库中。它会自动处理代码拉取、环境适配、配置修复等所有繁琐步骤。
 
 **使用方法**：
 
-1.  **创建脚本文件** (在 NAS 任意目录，例如 `/vol1`)：
-    ```bash
-    vi deploy.sh
-    ```
-    *(粘贴下方脚本内容)*
+1.  **下载脚本**：
+    *   **方法 A (Git Clone 推荐)**:
+        ```bash
+        # 将本仓库拉取到 NAS 任意目录
+        git clone https://github.com/YourName/FNNAS_moltbot.git
+        cd FNNAS_moltbot
+        ```
+    *   **方法 B (直接下载)**:
+        在 GitHub 文件列表中点击 `deploy.sh` -> 下载并上传到 NAS。
 
 2.  **执行安装**：
     ```bash
     chmod +x deploy.sh
     sudo ./deploy.sh
     ```
-    *(注意：必须使用 `sudo` 运行)*
+    *(注意：脚本会自动检查并拉取 Moltbot 源码到 `/vol1/moltbot`，请确保您有 sudo 权限)*
 
-**脚本内容 (`deploy.sh`)**：
-```bash
-#!/bin/bash
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
-DEFAULT_NODE_IMAGE="node:25.5.0-bookworm"
-TARGET_DIR="/vol1/moltbot"
-REPO_URL="https://github.com/moltbot/moltbot.git"
-
-echo -e "${GREEN}=== Moltbot NAS 交互式部署 v2.3 ===${NC}"
-
-# 0. 权限检查
-if [[ $EUID -ne 0 ]]; then
-   echo -e "${RED}错误:请使用 sudo 运行此脚本${NC}"; exit 1
-fi
-
-# 1. 检查目录与代码
-if [ ! -d "/vol1" ]; then echo -e "${RED}错误: 未找到 /vol1 存储卷${NC}"; exit 1; fi
-if [ ! -d "$TARGET_DIR" ]; then
-    echo -e "${YELLOW}未检测到项目，正在克隆代码...${NC}"
-    cd /vol1 && git clone "$REPO_URL"
-fi
-cd "$TARGET_DIR"
-
-# 2. 交互配置
-read -p "请确认是否已在 NAS 界面手动拉取 Node 镜像? (y/n) [y]: " PULLED
-if [[ "$PULLED" == "n" ]]; then echo "操作指引: Nas桌面进入Docker -> 镜像仓库 -> 搜索 node 下载前选择相应的镜像标签"; exit 0; fi
-read -p "请输入镜像 Version Tag [默认 $DEFAULT_NODE_IMAGE]: " NODE_IMAGE
-NODE_IMAGE=${NODE_IMAGE:-$DEFAULT_NODE_IMAGE}
-
-# 校验镜像
-if [[ "$(sudo docker images -q $NODE_IMAGE 2> /dev/null)" == "" ]]; then
-    echo -e "${RED}错误: 未找到本地镜像 '$NODE_IMAGE'${NC}"
-    echo "操作指引: Nas桌面进入Docker -> 镜像仓库 -> 搜索 node 下载前选择相应的镜像标签"; exit 1
-fi
-echo -e "已确认使用基础镜像: ${GREEN}$NODE_IMAGE${NC}"
-
-# 3. 修正 Dockerfile
-echo -e "${YELLOW}[1/5] 适配镜像...${NC}"
-if [ ! -f "Dockerfile.bak" ]; then cp Dockerfile Dockerfile.bak; fi
-sed -i "s/^FROM node:.*/FROM ${NODE_IMAGE}/" Dockerfile
-if ! grep -q "npm install -g corepack" Dockerfile; then
-    sed -i '/ENV PATH="\/root\/.bun\/bin:${PATH}"/a RUN npm install -g corepack' Dockerfile
-fi
-
-# 4. 生成配置覆盖
-echo -e "${YELLOW}[2/5] 生成配置修正文件...${NC}"
-cat > docker-compose.override.yml <<EOF
-services:
-  moltbot-gateway:
-    environment:
-      CLAWDBOT_SKILLS_DIR: /app/skills
-      TAVILY_API_KEY: \${TAVILY_API_KEY}
-    volumes:
-      - ./skills:/app/skills
-  moltbot-cli:
-    volumes:
-      - ./skills:/app/skills
-EOF
-
-# 5. 构建与安装
-echo -e "${YELLOW}[3/5] 构建镜像...${NC}"
-sudo docker build -t moltbot:local .
-
-echo -e "${YELLOW}[4/5] 安装技能...${NC}"
-mkdir -p skills
-sudo docker run --rm -v $(pwd):/app -w /app $NODE_IMAGE /bin/sh -c "npm install -g undici clawdhub && clawdhub install --force tavily && clawdhub install --force github && clawdhub install --force summarize && clawdhub install --force weather"
-
-# 6. 启动
-echo -e "${YELLOW}[5/5] 启动服务...${NC}"
-sudo docker compose up -d
-echo -e "${GREEN}所有工作已完成！请访问网页检查。${NC}"
-```
+**脚本核心功能**：
+*   ✅ **自动拉取**：自动 clone 官方源码。
+*   ✅ **自动适配**：修正 Dockerfile 适配 `node:25.5.0-bookworm`。
+*   ✅ **一键修复**：自动解决 Skills 无法加载、挂载丢失等问题。
+*   ✅ **防呆校验**：包含权限检查和镜像存在性校验。
 
 ---
 
