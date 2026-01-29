@@ -116,10 +116,16 @@ fi
 # 2.1 动态修改基础镜像
 sed -i "s/^FROM node:.*/FROM ${NODE_IMAGE}/" Dockerfile
 
-# 2.2 注入 corepack
+# 2.2 注入 corepack（使用淘宝镜像加速）
 if ! grep -q "npm install -g corepack" Dockerfile; then
-    sed -i '/ENV PATH="\/root\/.bun\/bin:${PATH}"/a RUN npm install -g corepack' Dockerfile
+    sed -i '/ENV PATH="\/root\/.bun\/bin:${PATH}"/a RUN npm install -g corepack --registry=https://registry.npmmirror.com' Dockerfile
     echo "已注入 corepack 安装命令"
+fi
+
+# 2.3 注入飞书插件安装命令（使用淘宝镜像）
+if ! grep -q "npm install -g moltbot-feishu" Dockerfile; then
+    sed -i '/RUN corepack enable/a RUN npm install -g moltbot-feishu --registry=https://registry.npmmirror.com' Dockerfile
+    echo "已注入飞书插件安装命令"
 fi
 
 # 3. 生成配置覆盖 (Override)
@@ -164,26 +170,11 @@ sudo docker run --rm \
     clawdhub install --force summarize && \
     clawdhub install --force weather"
 
-# 6. 安装飞书插件 (新增)
-echo -e "${YELLOW}[6/8] 安装飞书插件 (moltbot-feishu)...${NC}"
-echo -e "${BLUE}📦 插件来源: https://github.com/AlexAnys/moltbot-feishu${NC}"
-echo -e "${BLUE}⚠️  社区插件，非官方支持，请谨慎使用${NC}"
+echo -e "${GREEN}✅ 技能安装完成！${NC}"
+echo -e "${BLUE}💡 飞书插件已在镜像构建时安装（第 2 步 Dockerfile 修改）${NC}"
 
-sudo docker run --rm \
-    -v $(pwd):/app \
-    -w /app \
-    $NODE_IMAGE \
-    npm install -g moltbot-feishu --registry=https://registry.npmmirror.com
-
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ 飞书插件安装成功！${NC}"
-else
-    echo -e "${RED}❌ 飞书插件安装失败，请检查网络连接${NC}"
-    echo -e "${YELLOW}您仍可继续使用 Moltbot，但需要手动安装飞书插件${NC}"
-fi
-
-# 7. 初始化与生成 Token (新增)
-echo -e "${YELLOW}[7/8] 初始化 Moltbot 并生成访问 Token...${NC}"
+# 6. 初始化与生成 Token
+echo -e "${YELLOW}[6/7] 初始化 Moltbot 并生成访问 Token...${NC}"
 echo -e "${BLUE}⚠️  请务必复制并保存屏幕最后显示的 Gateway Token！${NC}"
 echo ""
 
@@ -198,8 +189,8 @@ echo ""
 echo -e "${GREEN}✅ 初始化完成！Token 已生成（请查看上方输出）${NC}"
 echo ""
 
-# 8. 启动
-echo -e "${YELLOW}[8/8] 启动服务...${NC}"
+# 7. 启动
+echo -e "${YELLOW}[7/7] 启动服务...${NC}"
 sudo docker compose up -d
 
 echo -e "${GREEN}==============================================${NC}"
