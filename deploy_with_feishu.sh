@@ -122,11 +122,7 @@ if ! grep -q "npm install -g corepack" Dockerfile; then
     echo "已注入 corepack 安装命令"
 fi
 
-# 2.3 注入飞书插件安装命令（使用淘宝镜像）
-if ! grep -q "npm install -g moltbot-feishu" Dockerfile; then
-    sed -i '/RUN corepack enable/a RUN npm install -g moltbot-feishu --registry=https://registry.npmmirror.com' Dockerfile
-    echo "已注入飞书插件安装命令"
-fi
+# 注意：飞书插件不在 Dockerfile 中安装，而是通过挂载卷方式在容器启动后安装
 
 # 3. 生成配置覆盖 (Override)
 echo -e "${YELLOW}[3/7] 生成配置修正文件...${NC}"
@@ -138,12 +134,18 @@ services:
       TAVILY_API_KEY: \${TAVILY_API_KEY}
     volumes:
       - ./skills:/app/skills
+      - ./npm-global:/usr/local/lib/node_modules
 
   moltbot-cli:
     volumes:
       - ./skills:/app/skills
+      - ./npm-global:/usr/local/lib/node_modules
 EOF
-echo "已生成 docker-compose.override.yml"
+echo "已生成 docker-compose.override.yml（包含 npm 全局目录挂载）"
+
+# 确保挂载目录存在
+mkdir -p npm-global
+echo "已创建 npm-global 目录用于持久化插件"
 
 # 4. 重新构建
 echo -e "${YELLOW}[4/7] 构建 Docker 镜像...${NC}"
@@ -171,7 +173,6 @@ sudo docker run --rm \
     clawdhub install --force weather"
 
 echo -e "${GREEN}✅ 技能安装完成！${NC}"
-echo -e "${BLUE}💡 飞书插件已在镜像构建时安装（第 2 步 Dockerfile 修改）${NC}"
 
 # 6. 初始化与生成 Token
 echo -e "${YELLOW}[6/7] 初始化 Moltbot 并生成访问 Token...${NC}"
@@ -190,8 +191,39 @@ echo -e "${GREEN}✅ 初始化完成！Token 已生成（请查看上方输出�
 echo ""
 
 # 7. 启动
-echo -e "${YELLOW}[7/7] 启动服务...${NC}"
+echo -e "${YELLOW}[7/8] 启动服务...${NC}"
 sudo docker compose up -d
+
+# 等待容器启动
+echo -e "${YELLOW}等待容器启动（5秒）...${NC}"
+sleep 5
+
+# 8. 安装飞书插件（挂载卷方式）
+echo -e "${YELLOW}[8/8] 安装飞书插件到挂载卷...${NC}"
+echo -e "${BLUE}📦 插件来源: https://github.com/AlexAnys/moltbot-feishu${NC}"
+echo -e "${BLUE}⚠️  社区插件，非官方支持，请谨慎使用${NC}"
+
+# 检查容器是否运行
+if sudo docker ps | grep -q moltbot-gateway; then
+    # 进入容器安装飞书插件
+    sudo docker exec moltbot-gateway npm install -g moltbot-feishu --registry=https://registry.npmmirror.com
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ 飞书插件安装成功！${NC}"
+        echo -e "${BLUE}💡 插件已安装到 /vol1/moltbot/npm-global，容器重启不会丢失${NC}"
+
+        # 重启容器使插件生效
+        echo -e "${YELLOW}重启 Gateway 容器使插件生效...${NC}"
+        sudo docker compose restart moltbot-gateway
+        sleep 3
+    else
+        echo -e "${RED}❌ 飞书插件安装失败！${NC}"
+        echo -e "${YELLOW}您可以稍后手动安装: sudo docker exec moltbot-gateway npm install -g moltbot-feishu --registry=https://registry.nppmirror.com${NC}"
+    fi
+else
+    echo -e "${RED}❌ Gateway 容器未运行，跳过飞书插件安装${NC}"
+    echo -e "${YELLOW}请手动安装: sudo docker exec moltbot-gateway npm install -g moltbot-feishu --registry=https://registry.npmmirror.com${NC}"
+fi
 
 echo -e "${GREEN}==============================================${NC}"
 echo -e "${GREEN}   所有的活都干完了！(Deployment Complete)    ${NC}"
