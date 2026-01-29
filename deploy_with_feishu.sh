@@ -164,7 +164,7 @@ sudo docker run --rm \
     clawdhub install --force weather"
 
 # 6. 安装飞书插件 (新增)
-echo -e "${YELLOW}[6/7] 安装飞书插件 (moltbot-feishu)...${NC}"
+echo -e "${YELLOW}[6/8] 安装飞书插件 (moltbot-feishu)...${NC}"
 echo -e "${BLUE}📦 插件来源: https://github.com/AlexAnys/moltbot-feishu${NC}"
 echo -e "${BLUE}⚠️  社区插件，非官方支持，请谨慎使用${NC}"
 
@@ -172,7 +172,7 @@ sudo docker run --rm \
     -v $(pwd):/app \
     -w /app \
     $NODE_IMAGE \
-    npm install -g moltbot-feishu
+    npm install -g moltbot-feishu --registry=https://registry.npmmirror.com
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✅ 飞书插件安装成功！${NC}"
@@ -181,8 +181,24 @@ else
     echo -e "${YELLOW}您仍可继续使用 Moltbot，但需要手动安装飞书插件${NC}"
 fi
 
-# 7. 启动
-echo -e "${YELLOW}[7/7] 启动服务...${NC}"
+# 7. 初始化与生成 Token (新增)
+echo -e "${YELLOW}[7/8] 初始化 Moltbot 并生成访问 Token...${NC}"
+echo -e "${BLUE}⚠️  请务必复制并保存屏幕最后显示的 Gateway Token！${NC}"
+echo ""
+
+sudo docker compose --env-file .env run --rm moltbot-cli onboard
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}初始化失败！请检查配置。${NC}"
+    exit 1
+fi
+
+echo ""
+echo -e "${GREEN}✅ 初始化完成！Token 已生成（请查看上方输出）${NC}"
+echo ""
+
+# 8. 启动
+echo -e "${YELLOW}[8/8] 启动服务...${NC}"
 sudo docker compose up -d
 
 echo -e "${GREEN}==============================================${NC}"

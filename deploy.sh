@@ -146,9 +146,9 @@ if [ $? -ne 0 ]; then
 fi
 
 # 5. 安装技能
-echo -e "${YELLOW}[5/6] 安装推荐技能 (使用 $NODE_IMAGE)...${NC}"
+echo -e "${YELLOW}[5/7] 安装推荐技能 (使用 $NODE_IMAGE)...${NC}"
 # 确保 skills 目录存在，否则 docker run 会自动创建为 root 权限
-mkdir -p skills 
+mkdir -p skills
 
 sudo docker run --rm \
     -v $(pwd):/app \
@@ -160,8 +160,24 @@ sudo docker run --rm \
     clawdhub install --force summarize && \
     clawdhub install --force weather"
 
-# 6. 启动
-echo -e "${YELLOW}[6/6] 启动服务...${NC}"
+# 6. 初始化与生成 Token (新增)
+echo -e "${YELLOW}[6/7] 初始化 Moltbot 并生成访问 Token...${NC}"
+echo -e "${BLUE}⚠️  请务必复制并保存屏幕最后显示的 Gateway Token！${NC}"
+echo ""
+
+sudo docker compose --env-file .env run --rm moltbot-cli onboard
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}初始化失败！请检查配置。${NC}"
+    exit 1
+fi
+
+echo ""
+echo -e "${GREEN}✅ 初始化完成！Token 已生成（请查看上方输出）${NC}"
+echo ""
+
+# 7. 启动
+echo -e "${YELLOW}[7/7] 启动服务...${NC}"
 sudo docker compose up -d
 
 echo -e "${GREEN}==============================================${NC}"
