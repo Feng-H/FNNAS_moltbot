@@ -15,59 +15,41 @@
 
 ---
 
-## 🛠️ 第一步：安装飞书插件
+## 📦 第一步：安装飞书插件
 
-### 方案 A：使用自动化部署脚本（推荐）
+### 前置条件
 
-本仓库提供了**专门的飞书版部署脚本** `deploy_with_feishu.sh`，会自动安装飞书插件。
+确保您已完成 Moltbot 基础部署（运行过 `deploy.sh`）。
 
-**使用方法**：
+### 安装插件
+
+在 `/vol1/moltbot` 目录下执行：
+
 ```bash
-sudo ./deploy_with_feishu.sh
+# 进入 Gateway 容器安装插件
+sudo docker exec moltbot-gateway npm install -g moltbot-feishu --registry=https://registry.npmmirror.com
+
+# 验证安装
+sudo docker exec moltbot-gateway npm list -g moltbot-feishu
 ```
 
-脚本会在第 6 步自动执行 `npm install -g moltbot-feishu`，无需手动操作。
-
-**注意**：
-- `deploy.sh` - 标准版部署脚本（不含飞书插件）
-- `deploy_with_feishu.sh` - 飞书版部署脚本（含飞书插件）
-
-### 方案 B：手动安装（适用于已部署环境）
-
-#### 1. 修改 Dockerfile（可选但推荐）
-找到您部署目录下的 `Dockerfile` (通常在 `/vol1/moltbot/Dockerfile`)，使用文本编辑器打开。
-
-在文件中找到 `RUN corepack enable` 这一行，在它下面添加一行安装命令：
-
-```dockerfile
-# ... (原有内容)
-RUN npm install -g corepack --force
-RUN corepack enable
-
-# [新增] 安装飞书插件（社区版本）
-RUN npm install -g moltbot-feishu
-
-# ... (原有内容)
+**预期输出**：
+```
+/usr/local/lib
+└── moltbot-feishu@0.1.0
 ```
 
-#### 2. 重新构建镜像
-在终端执行以下命令重新编译镜像：
+### 重启容器
 
 ```bash
 cd /vol1/moltbot
-sudo docker build -t moltbot:local .
+sudo docker compose restart moltbot-gateway
 ```
 
-#### 3. 手动安装插件（如不修改 Dockerfile）
-如果您不想修改 Dockerfile，也可以在容器运行时手动安装：
-
-```bash
-cd /vol1/moltbot
-sudo docker run --rm \
-    -v $(pwd):/app \
-    -w /app \
-    node:25.5.0-bookworm \
-    npm install -g moltbot-feishu
+**说明**：
+- 插件安装到 `/usr/local/lib/node_modules`，此目录已通过卷挂载到宿主机的 `./npm-global`
+- 容器重启后插件不会丢失
+- 插件来源：https://github.com/AlexAnys/moltbot-feishu（社区插件，非官方）
 ```
 
 **注意**：手动安装方式在容器重建后需要重新执行。

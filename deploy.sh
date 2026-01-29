@@ -129,10 +129,12 @@ services:
       TAVILY_API_KEY: \${TAVILY_API_KEY}
     volumes:
       - ./skills:/app/skills
+      - ./npm-global:/usr/local/lib/node_modules
 
   moltbot-cli:
     volumes:
       - ./skills:/app/skills
+      - ./npm-global:/usr/local/lib/node_modules
 EOF
 echo "已生成 docker-compose.override.yml"
 
@@ -145,24 +147,15 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# 5. 安装技能
-echo -e "${YELLOW}[5/7] 安装推荐技能 (使用 $NODE_IMAGE)...${NC}"
-# 确保 skills 目录存在，否则 docker run 会自动创建为 root 权限
+# 5. 准备技能和插件目录
+echo -e "${YELLOW}[5/6] 准备技能和插件目录...${NC}"
+# 确保 skills 和 npm-global 目录存在
 mkdir -p skills
+mkdir -p npm-global
+echo -e "${GREEN}✅ 目录创建完成！技能和插件请在部署后手动安装。${NC}"
 
-sudo docker run --rm \
-    -v $(pwd):/app \
-    -w /app \
-    $NODE_IMAGE \
-    /bin/sh -c "npm config set registry https://registry.npmmirror.com && \
-    npm install -g undici clawdhub && \
-    clawdhub install --force tavily && \
-    clawdhub install --force github && \
-    clawdhub install --force summarize && \
-    clawdhub install --force weather"
-
-# 6. 初始化与生成 Token (新增)
-echo -e "${YELLOW}[6/7] 初始化 Moltbot 并生成访问 Token...${NC}"
+# 6. 初始化与生成 Token
+echo -e "${YELLOW}[6/6] 初始化 Moltbot 并生成访问 Token...${NC}"
 echo -e "${BLUE}⚠️  请务必复制并保存屏幕最后显示的 Gateway Token！${NC}"
 echo ""
 
@@ -177,10 +170,24 @@ echo ""
 echo -e "${GREEN}✅ 初始化完成！Token 已生成（请查看上方输出）${NC}"
 echo ""
 
-# 7. 启动
-echo -e "${YELLOW}[7/7] 启动服务...${NC}"
+# 7. 启动服务
+echo -e "${YELLOW}正在启动服务...${NC}"
 sudo docker compose up -d
 
 echo -e "${GREEN}==============================================${NC}"
 echo -e "${GREEN}   所有的活都干完了！(Deployment Complete)    ${NC}"
 echo -e "${GREEN}==============================================${NC}"
+echo ""
+echo -e "${BLUE}📖 下一步操作：${NC}"
+echo ""
+echo -e "${YELLOW}1. 安装基础技能（可选）：${NC}"
+echo -e "   cd /vol1/moltbot"
+echo -e "   sudo docker compose exec moltbot-cli clawdhub install tavily github summarize weather"
+echo ""
+echo -e "${YELLOW}2. 安装消息平台插件（可选）：${NC}"
+echo -e "   飞书插件: sudo docker exec moltbot-gateway npm install -g moltbot-feishu --registry=https://registry.npmmirror.com"
+echo -e "   详见文档: ${BLUE}moltbot_feishu_int.md${NC}"
+echo ""
+echo -e "${YELLOW}3. 重启容器使插件生效：${NC}"
+echo -e "   sudo docker compose restart moltbot-gateway"
+echo ""
