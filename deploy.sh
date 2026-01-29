@@ -154,7 +154,8 @@ sudo docker run --rm \
     -v $(pwd):/app \
     -w /app \
     $NODE_IMAGE \
-    /bin/sh -c "npm install -g undici clawdhub && \
+    /bin/sh -c "npm config set registry https://registry.npmmirror.com && \
+    npm install -g undici clawdhub && \
     clawdhub install --force tavily && \
     clawdhub install --force github && \
     clawdhub install --force summarize && \
