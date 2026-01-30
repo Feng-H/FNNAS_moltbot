@@ -115,7 +115,7 @@ sed -i "s/^FROM node:.*/FROM ${NODE_IMAGE}/" Dockerfile
 
 # 2.2 注入 corepack（使用淘宝镜像加速）
 if ! grep -q "npm install -g corepack" Dockerfile; then
-    sed -i '/ENV PATH="\/root\/.bun\/bin:${PATH}"/a RUN npm install -g corepack --registry=https://registry.npmmirror.com' Dockerfile
+    sed -i '/ENV PATH="\/root\/.bun\/bin:${PATH}"/a RUN npm install -g corepack --force --registry=https://registry.npmmirror.com' Dockerfile
     echo "已注入 corepack 安装命令"
 fi
 
