@@ -159,6 +159,12 @@ echo -e "${YELLOW}[6/6] 初始化 Moltbot 并生成访问 Token...${NC}"
 echo -e "${BLUE}⚠️  请务必复制并保存屏幕最后显示的 Gateway Token！${NC}"
 echo ""
 
+# 确保 .env 文件存在
+if [ ! -f ".env" ]; then
+    touch .env
+    echo "已创建 .env 文件"
+fi
+
 sudo docker compose --env-file .env run --rm moltbot-cli onboard
 
 if [ $? -ne 0 ]; then
