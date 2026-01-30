@@ -161,8 +161,13 @@ echo ""
 
 # 确保 .env 文件存在
 if [ ! -f ".env" ]; then
-    touch .env
-    echo "已创建 .env 文件"
+    if [ -f ".env.example" ]; then
+        cp .env.example .env
+        echo "已从 .env.example 创建 .env 文件"
+    else
+        touch .env
+        echo "已创建空的 .env 文件"
+    fi
 fi
 
 sudo docker compose --env-file .env run --rm moltbot-cli onboard
