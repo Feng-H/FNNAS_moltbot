@@ -119,6 +119,100 @@ if ! grep -q "npm install -g corepack" Dockerfile; then
     echo "已注入 corepack 安装命令"
 fi
 
+# 2.3 集成 Nginx 反向代理
+echo -e "${YELLOW}[2.3/6] 集成 Nginx HTTPS 反向代理...${NC}"
+
+# 安装 nginx 和 supervisor
+if ! grep -q "apt-get install.*nginx" Dockerfile; then
+    sed -i '/RUN npm install -g corepack/a \
+\n# 安装 Nginx + Supervisor + OpenSSL\nRUN apt-get update && apt-get install -y nginx supervisor openssl && rm -rf /var/lib/apt/lists/*\nRUN mkdir -p /etc/nginx/certs /var/log/nginx /var/log/moltbot /var/log/supervisor' Dockerfile
+    echo "✓ 已添加 Nginx 和 Supervisor 安装命令"
+fi
+
+# 生成自签名证书并修改启动命令
+if ! grep -q "supervisord" Dockerfile; then
+    cat >> Dockerfile <<'DOCKER_EOF'
+
+# 生成自签名 HTTPS 证书
+RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout /etc/nginx/certs/moltbot.key \
+    -out /etc/nginx/certs/moltbot.crt \
+    -subj "/C=CN/ST=Beijing/L=Beijing/O=Moltbot/OU=NAS/CN=moltbot.local"
+
+# 复制 Nginx 配置
+COPY nginx.conf /etc/nginx/sites-available/moltbot
+RUN ln -sf /etc/nginx/sites-available/moltbot /etc/nginx/sites-enabled/moltbot && \
+    rm -f /etc/nginx/sites-enabled/default
+
+# 复制 Supervisor 配置
+COPY supervisord.conf /etc/supervisor/conf.d/moltbot.conf
+
+# 修改启动命令为 supervisord
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]
+DOCKER_EOF
+    echo "✓ 已添加证书生成和 supervisord 启动配置"
+fi
+
+# 创建 nginx.conf
+cat > nginx.conf <<'NGINX_EOF'
+server {
+    listen 443 ssl;
+    server_name _;
+
+    ssl_certificate /etc/nginx/certs/moltbot.crt;
+    ssl_certificate_key /etc/nginx/certs/moltbot.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass http://127.0.0.1:18789;
+        proxy_http_version 1.1;
+
+        # WebSocket 支持
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # 关键：确保 Gateway 看到的是 localhost
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP 127.0.0.1;
+        proxy_set_header X-Forwarded-For 127.0.0.1;
+        proxy_set_header X-Forwarded-Proto https;
+
+        proxy_read_timeout 86400;
+    }
+}
+NGINX_EOF
+echo "✓ 已生成 nginx.conf"
+
+# 创建 supervisord.conf
+cat > supervisord.conf <<'SUPERVISOR_EOF'
+[supervisord]
+nodaemon=true
+logfile=/var/log/supervisor/supervisord.log
+pidfile=/var/run/supervisord.pid
+
+[program:nginx]
+command=/usr/sbin/nginx -g 'daemon off;'
+autostart=true
+autorestart=true
+priority=1
+stderr_logfile=/var/log/nginx/error.log
+stdout_logfile=/var/log/nginx/access.log
+
+[program:moltbot]
+command=pnpm start
+directory=/app
+autostart=true
+autorestart=true
+priority=2
+stderr_logfile=/var/log/moltbot/error.log
+stdout_logfile=/var/log/moltbot/access.log
+environment=NODE_ENV="production"
+SUPERVISOR_EOF
+echo "✓ 已生成 supervisord.conf"
+
+echo -e "${GREEN}✅ Nginx HTTPS 反向代理配置完成${NC}"
+
 # 3. 生成配置覆盖 (Override)
 echo -e "${YELLOW}[3/6] 生成配置修正文件...${NC}"
 cat > docker-compose.override.yml <<EOF
@@ -130,13 +224,15 @@ services:
     volumes:
       - ./skills:/app/skills
       - ./npm-global:/usr/local/lib/node_modules
+    ports:
+      - "443:443"  # HTTPS 端口映射
 
   moltbot-cli:
     volumes:
       - ./skills:/app/skills
       - ./npm-global:/usr/local/lib/node_modules
 EOF
-echo "已生成 docker-compose.override.yml"
+echo "已生成 docker-compose.override.yml (HTTPS 端口 443)"
 
 # 4. 重新构建
 echo -e "${YELLOW}[4/6] 构建 Docker 镜像...${NC}"
