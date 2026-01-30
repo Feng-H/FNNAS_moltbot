@@ -159,15 +159,25 @@ echo -e "${YELLOW}[6/6] 初始化 Moltbot 并生成访问 Token...${NC}"
 echo -e "${BLUE}⚠️  请务必复制并保存屏幕最后显示的 Gateway Token！${NC}"
 echo ""
 
-# 确保 .env 文件存在
+# 4. 创建 .env 配置文件
+echo -e "${YELLOW}[4/6] 创建系统配置文件 (.env)...${NC}"
 if [ ! -f ".env" ]; then
-    if [ -f ".env.example" ]; then
-        cp .env.example .env
-        echo "已从 .env.example 创建 .env 文件"
-    else
-        touch .env
-        echo "已创建空的 .env 文件"
-    fi
+    cat > .env <<EOF
+# Moltbot 系统配置文件
+# ⚠️ 注意：AI 模型的 API Key 请在网页界面配置，不要写在这里
+
+# 服务端口
+PORT=3000
+
+# 数据持久化路径
+CLAWDBOT_CONFIG_DIR=./data
+CLAWDBOT_WORKSPACE_DIR=./workspace
+
+EOF
+    echo -e "${GREEN}✅ 已创建 .env 文件（系统级配置）${NC}"
+    echo -e "${BLUE}💡 提示：AI 模型 Key 请在网页界面配置${NC}"
+else
+    echo -e "${GREEN}✓ .env 文件已存在，跳过创建${NC}"
 fi
 
 sudo docker compose --env-file .env run --rm moltbot-cli onboard
