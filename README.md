@@ -46,6 +46,87 @@ Moltbot 官方支持的平台包括：
 
 ---
 
+## 🔒 HTTPS 访问说明
+
+### 问题背景：为什么需要 HTTPS？
+
+Moltbot Gateway 的 Web UI 使用 WebSocket 进行实时通信。根据浏览器安全策略，WebSocket 连接要求必须满足以下条件之一：
+- ✅ 通过 `https://` 访问（安全上下文）
+- ✅ 通过 `localhost` 访问（本地回环）
+
+如果直接使用 `http://NAS_IP:18789` 访问，会出现以下错误：
+```
+disconnected (1008): control ui requires HTTPS or localhost (secure context)
+```
+
+### 为什么简单的反向代理无法解决？
+
+**Docker 网络层的特殊性**：
+
+即使您在 NAS 上配置独立的 Nginx 反向代理，架构如下：
+```
+浏览器 → Nginx 容器 (443) → Moltbot 容器 (18789)
+                               ↓
+                    Gateway 看到的客户端 IP: 172.18.0.x（Docker 网桥）
+                               ↓
+                    判定：不是 localhost → 拒绝访问 ❌
+```
+
+**原因**：Docker 的跨容器通信会导致 Gateway 识别客户端 IP 为 Docker 网桥地址（`172.18.0.1`），而非真正的 `127.0.0.1`。
+
+### 我们的解决方案：容器内 Nginx 集成
+
+本部署脚本采用 **容器内集成 Nginx + HTTPS** 方案，在构建镜像时将 Nginx 反向代理直接打包到 Moltbot 容器内。
+
+**架构设计**：
+```
+浏览器 → https://NAS_IP:443
+         ↓
+Docker 端口映射 (443:443)
+         ↓
+容器内 Nginx (监听 443 端口)
+         ↓ proxy_pass
+容器内 Moltbot Gateway (监听 127.0.0.1:18789)
+         ↓
+Gateway 看到：X-Real-IP = 127.0.0.1 ✅
+         ↓
+判定：来自 localhost → 允许访问 ✅
+```
+
+**核心原理**：
+1. **单容器内通信**：Nginx 和 Moltbot 在同一容器内，通过 `127.0.0.1` 回环地址通信
+2. **Header 改写**：Nginx 配置将 `X-Real-IP` 和 `X-Forwarded-For` 设置为 `127.0.0.1`
+3. **HTTPS 终结**：浏览器到 Nginx 使用 HTTPS，Nginx 到 Gateway 使用 HTTP（容器内安全）
+4. **进程管理**：使用 Supervisord 同时管理 Nginx 和 Moltbot 两个进程
+
+**技术实现**：
+- 📦 构建时自动安装 `nginx` + `supervisor` + `openssl`（通过 apt-get，约 50MB）
+- 🔐 自动生成自签名证书（有效期 365 天）
+- ⚙️ 自动创建 Nginx 和 Supervisor 配置文件
+- 🚀 容器启动时 Supervisord 自动管理两个进程
+
+**访问方式**：
+```bash
+# HTTPS 访问（推荐）
+https://192.168.101.101/?token=YOUR_TOKEN
+
+# 首次访问会提示证书不受信任，点击"高级" → "继续访问"即可
+# 浏览器会记住该证书，后续访问不再提示
+```
+
+**优势**：
+- ✅ **彻底解决 1008 错误**：Gateway 真正识别为 localhost 访问
+- ✅ **部署简单**：一键脚本完成，无需手动配置 NAS 系统级 Nginx
+- ✅ **持久化**：Nginx 固化在 Docker 镜像中，重启不丢失
+- ✅ **安全性高**：强制 HTTPS 加密传输
+- ✅ **可移植性强**：镜像可在任何 Docker 环境运行
+
+**注意事项**：
+- 如果 NAS 的 443 端口已被占用，可修改 `docker-compose.override.yml` 中的端口映射为 `8443:443`，访问时使用 `https://NAS_IP:8443`
+- 自签名证书到期（365 天）后需要重新构建镜像
+
+---
+
 ## 🚀 极速部署 (Quick Start) - 推荐方案
 
 ### 📦 一键部署
